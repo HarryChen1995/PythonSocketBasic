@@ -2,37 +2,44 @@
 import socket
 import threading
 
+lock = threading.Lock()
 
-class server:
-    def __init__(self, ip , port):
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_socket.bind((ip, port))
-        self.server_socket.listen()
-        self.client_lists = []
+header_size = 1000
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.bind(("127.0.0.1",3001))
+server_socket.listen()
+socket_list = []
+def recv_all(sock):
+    data = b''
+    while True:
+        message = sock.recv(4000)
+        data += message
+        if len(message) < 4000:
+            break
+    return data
 
-    def sendMessage(self, conn):
-        while True:
-            data = conn.recv(1024)
-            if data ==  b"":
-                self.client_lists.remove(conn)
-                conn.close()
-                print("an connection closed")
-            for client in self.client_lists:
-                if client != conn:
-                    client.send(data)
+def broadcastSockets(connection):
+    while True:
+        data = recv_all(connection)
+        if data == b"":
+            print("connection lost")
+            with lock:
+                socket_list.remove(connection)
+            connection.close()
+            break
+        for i in socket_list:
+            if i != connection:
+                i.send(data)
 
-    def run(self):
-
-        while True:
-            client_socket , address = self.server_socket.accept()
-            cthread = threading.Thread(target = self.sendMessage, args = (client_socket,))
-            cthread.deamon = True
-            cthread.start()
-            self.client_lists.append(client_socket)
-            print(f"new connection establihsed from IP: {address[0]} and Port {address[1]}")
 
 
 if __name__ == "__main__":
-    s = server("127.0.0.1", 4000)
-    s.run()
+
+    while True:
+        socket_connection, _ = server_socket.accept()
+        socket_list.append(socket_connection)
+        thread = threading.Thread(target = broadcastSockets, args = [socket_connection], daemon = True)
+        thread.start()
+
+
 

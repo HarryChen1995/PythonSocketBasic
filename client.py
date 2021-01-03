@@ -1,25 +1,37 @@
 #!/usr/bin/env python3
-
 import socket
 import threading
-class client:
-    def __init__(self, ip, port):
-        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client_socket.connect((ip, port))
-        thread = threading.Thread(target= self.sendMessage)
-        thread.daemon = True
-        thread.start()
-        while True:
-            data = self.client_socket.recv(1024)
-            if data == b'':
-                raise RuntimeError("connection lost")
-            print(data)
+
+header_size = 1000
+
+def encodeMessage(message):
+    message_length = len(bytes(message ,"utf8"))
+    header = ("{:>" + str(header_size) + "}").format(message_length)
+    return bytes(header+message, "utf8")
+def sendMessage(connection):
+    while True:
+        message = input()
+        connection.send(encodeMessage(message))
 
 
-    def sendMessage(self):
-        while True:
-            message = input("Enter Message:")
-            self.client_socket.send(bytes(message,"utf-8"))
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client_socket.connect(("127.0.0.1", 3001))
+
+
 if __name__ == "__main__":
-    c = client("127.0.0.1", 4000)
-    c.run()
+    thread = threading.Thread(target = sendMessage, args = [client_socket], daemon = True)
+    thread.start()
+
+
+    while True:
+        header = client_socket.recv(header_size)
+        if header == b"":
+            print("conection lost")
+            break
+        size = int(header.decode("utf8"))
+        data = client_socket.recv(size)
+        if data == b"":
+            print("connection lost")
+            break
+        print(data.decode("utf8"))
+
